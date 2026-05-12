@@ -3,5 +3,4 @@ python-dotenv
 requests
 pyqrcode
 pypng
-firebase-admin
 gunicorn
