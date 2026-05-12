@@ -5,34 +5,43 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VIP Payment</title>
     <style>
-        body { background: #0f0f1a; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; text-align: center; }
-        .pay-card { background: rgba(255,255,255,0.05); border: 1px solid #ff00ff; padding: 30px; border-radius: 20px; box-shadow: 0 0 20px rgba(255,0,255,0.3); }
+        body { background: #0f0f1a; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; text-align: center; margin: 0;}
+        .pay-card { background: rgba(255,255,255,0.05); border: 1px solid #ff00ff; padding: 30px; border-radius: 20px; box-shadow: 0 0 20px rgba(255,0,255,0.3); width: 90%; max-width: 400px;}
         .timer { font-size: 30px; color: #ff00ff; font-weight: bold; margin: 15px 0; }
-        img { border-radius: 10px; margin: 20px 0; border: 4px solid #fff; }
+        img { border-radius: 10px; margin: 20px 0; border: 4px solid #fff; max-width: 200px;}
         .loader-ring { display: inline-block; width: 40px; height: 40px; border: 4px solid rgba(255,0,255,0.3); border-radius: 50%; border-top-color: #ff00ff; animation: spin 1s ease-in-out infinite; margin-top: 20px;}
         @keyframes spin { to { transform: rotate(360deg); } }
         #successScreen { display: none; }
-        button { padding: 12px 30px; border: none; border-radius: 8px; background: linear-gradient(45deg, #8a2be2, #ff00ff); color: white; cursor: pointer; font-weight: bold; margin-top: 20px;}
+        button { padding: 12px 30px; border: none; border-radius: 8px; background: linear-gradient(45deg, #8a2be2, #ff00ff); color: white; cursor: pointer; font-weight: bold; margin-top: 20px; width: 100%;}
+        
+        #popup { display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #1a1a2e; border: 1px solid #ff00ff; padding: 15px 30px; border-radius: 10px; z-index: 1000; box-shadow: 0 0 15px rgba(255,0,255,0.5); font-weight: bold;}
     </style>
 </head>
 <body>
 
+    <div id="popup"></div>
+
     <div class="pay-card" id="payScreen">
         <h2>Pay via any UPI App</h2>
-        <div style="font-size: 24px; margin-top:10px;">Amount: ₹<span id="p_amt"></span> (Locked)</div>
+        <div style="font-size: 24px; margin-top:10px;">Amount: ₹<span id="p_amt"></span></div>
         <img id="qr_img" src="" alt="Loading QR...">
         <div class="timer" id="timer">05:00</div>
-        <div>Waiting for payment...</div>
+        <div style="color: #aaa; font-size: 14px;">Do not close this page. Checking automatically...</div>
         <div class="loader-ring"></div>
     </div>
 
     <div class="pay-card" id="successScreen">
         <h2 style="color: #00ff00; text-shadow: 0 0 10px #00ff00;">PAYMENT SUCCESSFUL!</h2>
-        <p>Project is unlocked.</p>
+        <p style="margin: 10px 0; color: #aaa;">Project is unlocked and added to your profile.</p>
         <button onclick="openLink()">Open Project</button>
     </div>
 
     <script>
+        function showPopup(msg) {
+            let p = document.getElementById('popup'); p.innerText = msg; p.style.display = 'block';
+            setTimeout(() => p.style.display = 'none', 3000);
+        }
+
         let params = new URLSearchParams(window.location.search);
         let p_id = params.get('id');
         let p_price = params.get('price');
@@ -56,14 +65,15 @@
                 let m = Math.floor(timeLeft/60).toString().padStart(2, '0');
                 let s = (timeLeft%60).toString().padStart(2, '0');
                 document.getElementById('timer').innerText = `${m}:${s}`;
+                
                 if(timeLeft <= 0) {
                     clearInterval(t); clearInterval(checkInterval);
-                    alert("Payment Timeout. Order Rejected.");
-                    window.location.href = '/dashboard';
+                    showPopup("Payment Timeout! Order Rejected.");
+                    setTimeout(() => { window.location.href = '/dashboard'; }, 2000);
                 }
             }, 1000);
 
-            // Auto Check Payment Every 5 Seconds
+            // REAL Auto Check Payment
             checkInterval = setInterval(async () => {
                 let v = await fetch('/api/verify_payment', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
