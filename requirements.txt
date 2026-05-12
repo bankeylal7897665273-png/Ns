@@ -4,3 +4,4 @@ requests
 pyqrcode
 pypng
 firebase-admin
+gunicorn
