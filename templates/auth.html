@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VIP Shop - Auth</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: #0f0f1a; color: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+        .glass-box { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(15px); padding: 40px; border-radius: 20px; border: 1px solid rgba(255, 0, 255, 0.2); box-shadow: 0 0 20px rgba(138, 43, 226, 0.3); width: 90%; max-width: 400px; text-align: center; }
+        h2 { margin-bottom: 20px; color: #ff00ff; text-shadow: 0 0 10px #ff00ff; }
+        input { width: 100%; padding: 15px; margin: 10px 0; border: none; border-radius: 10px; background: rgba(0,0,0,0.5); color: white; border: 1px solid #8a2be2; outline: none; }
+        button { width: 100%; padding: 15px; margin-top: 15px; border: none; border-radius: 10px; background: linear-gradient(45deg, #8a2be2, #ff00ff); color: white; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.3s; position: relative; }
+        button:hover { box-shadow: 0 0 15px #ff00ff; }
+        .switch-txt { margin-top: 15px; color: #aaa; cursor: pointer; font-size: 14px; }
+        .switch-txt span { color: #ff00ff; }
+        
+        /* Loader CSS */
+        .loader { display: none; border: 4px solid rgba(255,255,255,0.1); border-left-color: #ffffff; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+        @keyframes spin { 100% { transform: translate(-50%, -50%) rotate(360deg); } }
+        .btn-text { transition: 0.3s; }
+        
+        /* Custom Popup */
+        #popup { display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #1a1a2e; border: 1px solid #ff00ff; padding: 15px 30px; border-radius: 10px; z-index: 1000; box-shadow: 0 0 15px rgba(255,0,255,0.5); }
+    </style>
+</head>
+<body>
+
+    <div id="popup"></div>
+
+    <div class="glass-box" id="loginBox">
+        <h2>VIP LOGIN</h2>
+        <input type="email" id="l_email" placeholder="Email Address">
+        <input type="password" id="l_pass" placeholder="Password">
+        <button onclick="login()">
+            <span class="btn-text" id="l_text">LOGIN</span>
+            <div class="loader" id="l_loader"></div>
+        </button>
+        <div class="switch-txt" onclick="toggleAuth()">Don't have an account? <span>Create</span></div>
+    </div>
+
+    <div class="glass-box" id="signupBox" style="display: none;">
+        <h2>VIP REGISTER</h2>
+        <input type="email" id="s_email" placeholder="Email Address">
+        <input type="password" id="s_pass" placeholder="Password">
+        <input type="password" id="s_repass" placeholder="Re-enter Password">
+        <button onclick="signup()">
+            <span class="btn-text" id="s_text">CREATE ACCOUNT</span>
+            <div class="loader" id="s_loader"></div>
+        </button>
+        <div class="switch-txt" onclick="toggleAuth()">Already have an account? <span>Login</span></div>
+    </div>
+
+    <script>
+        function showPopup(msg) {
+            let p = document.getElementById('popup');
+            p.innerText = msg; p.style.display = 'block';
+            setTimeout(() => p.style.display = 'none', 3000);
+        }
+
+        function toggleAuth() {
+            let l = document.getElementById('loginBox');
+            let s = document.getElementById('signupBox');
+            if(l.style.display === 'none') { l.style.display = 'block'; s.style.display = 'none'; }
+            else { l.style.display = 'none'; s.style.display = 'block'; }
+        }
+
+        async function login() {
+            let email = document.getElementById('l_email').value;
+            let pass = document.getElementById('l_pass').value;
+            if(!email || !pass) return showPopup("Please fill all fields!");
+            
+            document.getElementById('l_text').style.opacity = '0';
+            document.getElementById('l_loader').style.display = 'block';
+
+            let res = await fetch('/api/login', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({email, password: pass})
+            });
+            let data = await res.json();
+            if(data.status === 'success') { window.location.href = '/dashboard'; }
+            else { 
+                showPopup(data.message); 
+                document.getElementById('l_text').style.opacity = '1';
+                document.getElementById('l_loader').style.display = 'none';
+            }
+        }
+
+        async function signup() {
+            let email = document.getElementById('s_email').value;
+            let pass = document.getElementById('s_pass').value;
+            let repass = document.getElementById('s_repass').value;
+            if(!email || !pass) return showPopup("Please fill all fields!");
+            if(pass !== repass) return showPopup("Passwords do not match!");
+
+            document.getElementById('s_text').style.opacity = '0';
+            document.getElementById('s_loader').style.display = 'block';
+
+            let res = await fetch('/api/signup', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({email, password: pass})
+            });
+            let data = await res.json();
+            if(data.status === 'success') { window.location.href = '/dashboard'; }
+            else { 
+                showPopup(data.message); 
+                document.getElementById('s_text').style.opacity = '1';
+                document.getElementById('s_loader').style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
