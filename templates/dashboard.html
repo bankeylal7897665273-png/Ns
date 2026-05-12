@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VIP Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: sans-serif; }
+        body { background: #0f0f1a; color: #fff; padding-bottom: 70px; }
+        
+        /* Topbar & Bottom Nav */
+        .header { padding: 20px; text-align: center; border-bottom: 1px solid rgba(255,0,255,0.2); background: rgba(0,0,0,0.5); backdrop-filter: blur(10px); color: #ff00ff; text-shadow: 0 0 10px #ff00ff; font-weight: bold; font-size: 20px;}
+        .bottom-nav { position: fixed; bottom: 0; width: 100%; display: flex; justify-content: space-around; background: rgba(0,0,0,0.8); backdrop-filter: blur(15px); padding: 15px 0; border-top: 1px solid #8a2be2; }
+        .nav-item { cursor: pointer; color: #aaa; font-size: 24px; transition: 0.3s; }
+        .nav-item.active { color: #ff00ff; text-shadow: 0 0 10px #ff00ff; }
+        
+        /* Sections */
+        .section { display: none; padding: 20px; }
+        .section.active { display: block; }
+        
+        /* Cards */
+        .card { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 15px; margin-bottom: 15px; border: 1px solid rgba(138,43,226,0.3); }
+        .card img { width: 100%; border-radius: 10px; height: 150px; object-fit: cover; }
+        .card h3 { margin: 10px 0; color: #fff; }
+        .card p { color: #aaa; font-size: 14px; margin-bottom: 10px; }
+        .card-price { color: #ff00ff; font-weight: bold; font-size: 18px; margin-bottom: 10px; }
+        button.action-btn { width: 100%; padding: 12px; border: none; border-radius: 8px; background: linear-gradient(45deg, #8a2be2, #ff00ff); color: white; cursor: pointer; font-weight: bold; }
+        
+        /* Inputs */
+        input, textarea { width: 100%; padding: 12px; margin-bottom: 15px; background: rgba(0,0,0,0.5); border: 1px solid #8a2be2; color: white; border-radius: 8px; outline: none;}
+        #popup { display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #1a1a2e; border: 1px solid #ff00ff; padding: 15px 30px; border-radius: 10px; z-index: 1000; box-shadow: 0 0 15px rgba(255,0,255,0.5); }
+    </style>
+</head>
+<body>
+
+    <div id="popup"></div>
+    <div class="header">VIP SHOP</div>
+
+    <!-- HOME SECTION -->
+    <div id="home" class="section active">
+        <h2 style="margin-bottom: 15px;">Latest Projects</h2>
+        <div id="projectsList">Loading...</div>
+    </div>
+
+    <!-- ADD PROJECT SECTION -->
+    <div id="add" class="section">
+        <h2>Add New Project</h2><br>
+        <input type="text" id="p_name" placeholder="Project Name">
+        <input type="text" id="p_img" placeholder="Image URL">
+        <textarea id="p_desc" placeholder="Description"></textarea>
+        <input type="text" id="p_link" placeholder="Download / Project Link">
+        <input type="number" id="p_price" placeholder="Price (0 for Free)">
+        <button class="action-btn" onclick="submitProject()">Submit for Approval</button>
+    </div>
+
+    <!-- PROFILE SECTION -->
+    <div id="profile" class="section">
+        <div class="card" style="text-align: center;">
+            <h2>Wallet Balance</h2>
+            <div style="font-size: 30px; color: #00ff00; margin: 10px 0; text-shadow: 0 0 10px #00ff00;">₹<span id="walletBal">0</span></div>
+            <button class="action-btn" onclick="withdraw()">Withdraw</button>
+        </div>
+        <h3>My Uploaded Projects</h3>
+        <div id="myProjectsList"></div>
+    </div>
+
+    <!-- BOTTOM NAV -->
+    <div class="bottom-nav">
+        <div class="nav-item active" onclick="nav('home')">🏠</div>
+        <div class="nav-item" onclick="nav('add')">➕</div>
+        <div class="nav-item" onclick="nav('profile')">👤</div>
+    </div>
+
+    <script>
+        function showPopup(msg) {
+            let p = document.getElementById('popup'); p.innerText = msg; p.style.display = 'block';
+            setTimeout(() => p.style.display = 'none', 3000);
+        }
+
+        function nav(tab) {
+            document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            document.getElementById(tab).classList.add('active');
+            event.target.classList.add('active');
+            if(tab === 'home') loadProjects();
+        }
+
+        async function loadProjects() {
+            let res = await fetch('/api/projects');
+            let data = await res.json();
+            let html = '';
+            for(let key in data) {
+                if(data[key].status === 'success') { // Only approved projects
+                    let priceTxt = data[key].price == 0 ? 'FREE' : `₹${data[key].price}`;
+                    html += `
+                        <div class="card">
+                            <img src="${data[key].img}" alt="img">
+                            <h3>${data[key].name}</h3>
+                            <p>${data[key].desc}</p>
+                            <div class="card-price">${priceTxt}</div>
+                            <button class="action-btn" onclick="openProject('${key}', ${data[key].price}, '${data[key].link}')">${data[key].price == 0 ? 'OPEN LINK' : 'BUY NOW'}</button>
+                        </div>
+                    `;
+                }
+            }
+            document.getElementById('projectsList').innerHTML = html || 'No projects found.';
+        }
+
+        function openProject(id, price, link) {
+            if(price == 0) { window.open(link, '_blank'); }
+            else { window.location.href = `/pay?id=${id}&price=${price}&link=${encodeURIComponent(link)}`; }
+        }
+
+        async function submitProject() {
+            let payload = {
+                name: document.getElementById('p_name').value,
+                img: document.getElementById('p_img').value,
+                desc: document.getElementById('p_desc').value,
+                link: document.getElementById('p_link').value,
+                price: document.getElementById('p_price').value
+            };
+            let res = await fetch('/api/add_project', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            let data = await res.json();
+            showPopup(data.message);
+            if(data.status==='success') { nav('home'); }
+        }
+
+        async function withdraw() {
+            let upi = prompt("Enter your UPI ID:");
+            let amount = prompt("Enter Amount (Min 200):");
+            if(upi && amount) {
+                let res = await fetch('/api/withdraw', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({upi, amount})
+                });
+                let data = await res.json();
+                showPopup(data.message);
+            }
+        }
+
+        window.onload = loadProjects;
+    </script>
+</body>
+</html>
