@@ -8,27 +8,30 @@
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: sans-serif; }
         body { background: #0f0f1a; color: #fff; padding-bottom: 70px; }
         
-        /* Topbar & Bottom Nav */
         .header { padding: 20px; text-align: center; border-bottom: 1px solid rgba(255,0,255,0.2); background: rgba(0,0,0,0.5); backdrop-filter: blur(10px); color: #ff00ff; text-shadow: 0 0 10px #ff00ff; font-weight: bold; font-size: 20px;}
-        .bottom-nav { position: fixed; bottom: 0; width: 100%; display: flex; justify-content: space-around; background: rgba(0,0,0,0.8); backdrop-filter: blur(15px); padding: 15px 0; border-top: 1px solid #8a2be2; }
+        .bottom-nav { position: fixed; bottom: 0; width: 100%; display: flex; justify-content: space-around; background: rgba(0,0,0,0.8); backdrop-filter: blur(15px); padding: 15px 0; border-top: 1px solid #8a2be2; z-index: 100;}
         .nav-item { cursor: pointer; color: #aaa; font-size: 24px; transition: 0.3s; }
         .nav-item.active { color: #ff00ff; text-shadow: 0 0 10px #ff00ff; }
         
-        /* Sections */
-        .section { display: none; padding: 20px; }
+        .section { display: none; padding: 15px; }
         .section.active { display: block; }
         
-        /* Cards */
-        .card { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 15px; margin-bottom: 15px; border: 1px solid rgba(138,43,226,0.3); }
-        .card img { width: 100%; border-radius: 10px; height: 150px; object-fit: cover; }
-        .card h3 { margin: 10px 0; color: #fff; }
-        .card p { color: #aaa; font-size: 14px; margin-bottom: 10px; }
-        .card-price { color: #ff00ff; font-weight: bold; font-size: 18px; margin-bottom: 10px; }
-        button.action-btn { width: 100%; padding: 12px; border: none; border-radius: 8px; background: linear-gradient(45deg, #8a2be2, #ff00ff); color: white; cursor: pointer; font-weight: bold; }
+        /* 2 Projects in 1 Line Grid */
+        .grid-container { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .card { background: rgba(255,255,255,0.05); padding: 10px; border-radius: 12px; border: 1px solid rgba(138,43,226,0.3); text-align: center;}
+        .card img { width: 100%; border-radius: 8px; height: 100px; object-fit: cover; }
+        .card h3 { margin: 8px 0; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
+        .card p { color: #aaa; font-size: 12px; height: 30px; overflow: hidden; margin-bottom: 5px; }
+        .card-price { color: #ff00ff; font-weight: bold; font-size: 14px; margin-bottom: 8px; }
+        button.action-btn { width: 100%; padding: 8px; border: none; border-radius: 6px; background: linear-gradient(45deg, #8a2be2, #ff00ff); color: white; cursor: pointer; font-size: 12px; font-weight: bold; }
         
-        /* Inputs */
         input, textarea { width: 100%; padding: 12px; margin-bottom: 15px; background: rgba(0,0,0,0.5); border: 1px solid #8a2be2; color: white; border-radius: 8px; outline: none;}
-        #popup { display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #1a1a2e; border: 1px solid #ff00ff; padding: 15px 30px; border-radius: 10px; z-index: 1000; box-shadow: 0 0 15px rgba(255,0,255,0.5); }
+        
+        /* VIP Custom Popup */
+        #popup { display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #1a1a2e; border: 1px solid #ff00ff; padding: 15px 30px; border-radius: 10px; z-index: 1000; box-shadow: 0 0 15px rgba(255,0,255,0.5); font-weight: bold;}
+        
+        .history-box { background: #222; padding: 10px; border-left: 4px solid #8a2be2; margin-bottom: 10px; font-size: 14px;}
+        .text-green { color: #00ff00; } .text-red { color: #ff0000; } .text-yellow { color: #ffff00; }
     </style>
 </head>
 <body>
@@ -36,35 +39,37 @@
     <div id="popup"></div>
     <div class="header">VIP SHOP</div>
 
-    <!-- HOME SECTION -->
     <div id="home" class="section active">
-        <h2 style="margin-bottom: 15px;">Latest Projects</h2>
-        <div id="projectsList">Loading...</div>
+        <h3 style="margin-bottom: 15px;">Latest Projects</h3>
+        <div id="projectsList" class="grid-container">Loading...</div>
     </div>
 
-    <!-- ADD PROJECT SECTION -->
     <div id="add" class="section">
-        <h2>Add New Project</h2><br>
+        <h3>Add New Project</h3><br>
         <input type="text" id="p_name" placeholder="Project Name">
         <input type="text" id="p_img" placeholder="Image URL">
         <textarea id="p_desc" placeholder="Description"></textarea>
-        <input type="text" id="p_link" placeholder="Download / Project Link">
+        <input type="text" id="p_link" placeholder="Download Link">
         <input type="number" id="p_price" placeholder="Price (0 for Free)">
         <button class="action-btn" onclick="submitProject()">Submit for Approval</button>
     </div>
 
-    <!-- PROFILE SECTION -->
     <div id="profile" class="section">
-        <div class="card" style="text-align: center;">
-            <h2>Wallet Balance</h2>
+        <div style="text-align: center; background: rgba(255,255,255,0.05); padding: 20px; border-radius: 15px; border: 1px solid #8a2be2;">
+            <p>Wallet Balance</p>
             <div style="font-size: 30px; color: #00ff00; margin: 10px 0; text-shadow: 0 0 10px #00ff00;">₹<span id="walletBal">0</span></div>
-            <button class="action-btn" onclick="withdraw()">Withdraw</button>
+            <input type="text" id="w_upi" placeholder="Your UPI ID" style="margin-bottom: 5px;">
+            <input type="number" id="w_amt" placeholder="Amount (Min 200)" style="margin-bottom: 10px;">
+            <button class="action-btn" onclick="withdraw()">WITHDRAW</button>
         </div>
-        <h3>My Uploaded Projects</h3>
-        <div id="myProjectsList"></div>
+
+        <h3 style="margin: 20px 0 10px;">My Purchased Projects</h3>
+        <div id="myProjectsList" class="grid-container"></div>
+
+        <h3 style="margin: 20px 0 10px;">Withdrawal History</h3>
+        <div id="historyList"></div>
     </div>
 
-    <!-- BOTTOM NAV -->
     <div class="bottom-nav">
         <div class="nav-item active" onclick="nav('home')">🏠</div>
         <div class="nav-item" onclick="nav('add')">➕</div>
@@ -83,6 +88,7 @@
             document.getElementById(tab).classList.add('active');
             event.target.classList.add('active');
             if(tab === 'home') loadProjects();
+            if(tab === 'profile') loadProfile();
         }
 
         async function loadProjects() {
@@ -90,15 +96,21 @@
             let data = await res.json();
             let html = '';
             for(let key in data) {
-                if(data[key].status === 'success') { // Only approved projects
-                    let priceTxt = data[key].price == 0 ? 'FREE' : `₹${data[key].price}`;
+                if(data[key].status === 'success') {
+                    // Check ownership
+                    let btnAction = '';
+                    if(data[key].price == 0 || data[key].owned) {
+                        btnAction = `<button class="action-btn" style="background:#00ff00;color:#000;" onclick="window.open('${data[key].link}', '_blank')">OPEN LINK</button>`;
+                    } else {
+                        btnAction = `<button class="action-btn" onclick="buyProject('${key}', ${data[key].price}, '${data[key].link}')">BUY ₹${data[key].price}</button>`;
+                    }
+
                     html += `
                         <div class="card">
                             <img src="${data[key].img}" alt="img">
                             <h3>${data[key].name}</h3>
                             <p>${data[key].desc}</p>
-                            <div class="card-price">${priceTxt}</div>
-                            <button class="action-btn" onclick="openProject('${key}', ${data[key].price}, '${data[key].link}')">${data[key].price == 0 ? 'OPEN LINK' : 'BUY NOW'}</button>
+                            ${btnAction}
                         </div>
                     `;
                 }
@@ -106,39 +118,55 @@
             document.getElementById('projectsList').innerHTML = html || 'No projects found.';
         }
 
-        function openProject(id, price, link) {
-            if(price == 0) { window.open(link, '_blank'); }
-            else { window.location.href = `/pay?id=${id}&price=${price}&link=${encodeURIComponent(link)}`; }
+        async function loadProfile() {
+            let res = await fetch('/api/profile_data');
+            let data = await res.json();
+            document.getElementById('walletBal').innerText = data.balance;
+
+            // Load My Projects
+            let projHtml = '';
+            for(let key in data.my_projects) {
+                let p = data.my_projects[key];
+                projHtml += `<div class="card"><img src="${p.img}"><h3>${p.name}</h3><button class="action-btn" style="background:#0088ff;" onclick="window.open('${p.link}', '_blank')">OPEN</button></div>`;
+            }
+            document.getElementById('myProjectsList').innerHTML = projHtml || '<p style="font-size:12px; color:#aaa;">No projects purchased yet.</p>';
+
+            // Load History
+            let histHtml = '';
+            for(let key in data.history) {
+                let h = data.history[key];
+                let colorClass = h.status === 'success' ? 'text-green' : (h.status === 'rejected' ? 'text-red' : 'text-yellow');
+                histHtml += `<div class="history-box">Amt: ₹${h.amount} | Status: <b class="${colorClass}">${h.status.toUpperCase()}</b></div>`;
+            }
+            document.getElementById('historyList').innerHTML = histHtml || '<p style="font-size:12px; color:#aaa;">No history.</p>';
         }
 
+        function buyProject(id, price, link) { window.location.href = `/pay?id=${id}&price=${price}&link=${encodeURIComponent(link)}`; }
+
         async function submitProject() {
-            let payload = {
-                name: document.getElementById('p_name').value,
-                img: document.getElementById('p_img').value,
-                desc: document.getElementById('p_desc').value,
-                link: document.getElementById('p_link').value,
-                price: document.getElementById('p_price').value
-            };
             let res = await fetch('/api/add_project', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(payload)
+                body: JSON.stringify({
+                    name: document.getElementById('p_name').value, img: document.getElementById('p_img').value,
+                    desc: document.getElementById('p_desc').value, link: document.getElementById('p_link').value,
+                    price: document.getElementById('p_price').value
+                })
             });
-            let data = await res.json();
-            showPopup(data.message);
-            if(data.status==='success') { nav('home'); }
+            let data = await res.json(); showPopup(data.message);
+            if(data.status==='success') nav('home');
         }
 
         async function withdraw() {
-            let upi = prompt("Enter your UPI ID:");
-            let amount = prompt("Enter Amount (Min 200):");
-            if(upi && amount) {
-                let res = await fetch('/api/withdraw', {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({upi, amount})
-                });
-                let data = await res.json();
-                showPopup(data.message);
-            }
+            let upi = document.getElementById('w_upi').value;
+            let amount = document.getElementById('w_amt').value;
+            if(!upi || !amount) return showPopup("Fill UPI and Amount!");
+            
+            let res = await fetch('/api/withdraw', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({upi, amount})
+            });
+            let data = await res.json(); showPopup(data.message);
+            if(data.status === 'success') loadProfile();
         }
 
         window.onload = loadProjects;
